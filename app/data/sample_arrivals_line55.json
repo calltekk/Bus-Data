@@ -1,0 +1,6 @@
+[
+  {"naptanId": "stop1", "timeToStation": 300},
+  {"naptanId": "stop1", "timeToStation": 600},
+  {"naptanId": "stop2", "timeToStation": 180},
+  {"naptanId": "stop2", "timeToStation": 480}
+]

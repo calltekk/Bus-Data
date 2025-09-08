@@ -14,9 +14,9 @@ def engine():
 def upsert_df(df: pd.DataFrame, table: str, key_cols: list):
     """
     Simple upsert: replace on conflict by dropping duplicates on key_cols.
-    Good enough for demo.
     """
-    if df.empty: return
+    if df.empty: 
+        return
     df = df.drop_duplicates(subset=key_cols)
     df.to_sql(table, engine(), if_exists="append", index=False)
 

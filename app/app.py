@@ -1,37 +1,35 @@
-# app/app.py
-
-import os, json, time
+import os
+import json
+import time
 import pandas as pd
 import numpy as np
 import pydeck as pdk
 import streamlit as st
 from dotenv import load_dotenv
-
-# --- YAML handling for Python 3.13 / Streamlit Cloud
 from ruamel.yaml import YAML
+
+# --- Load YAML
 yaml = YAML(typ='safe')
 
 # --- Load environment variables
-load_dotenv()  # looks for .env in the same folder
+load_dotenv()  # expects .env in repo root
 
-from logic import (
-    normalize_disruptions,
-    estimate_headway_minutes,
-    aggregate_costs
-)
-from tfl_client import get_bus_disruptions, get_line_arrivals
-from storage import read_table
+# --- Package imports
+from app.logic import normalize_disruptions, estimate_headway_minutes, aggregate_costs
+from app.tfl_client import get_bus_disruptions, get_line_arrivals
+from app.storage import read_table
 
 st.set_page_config(page_title="Bus Disruption Cost Dashboard", layout="wide")
 
 # --- Load config
 CFG_PATH = os.path.join(os.path.dirname(__file__), "config.yaml")
-CFG = yaml.safe_load(open(CFG_PATH))
+CFG = yaml.load(open(CFG_PATH))
 
 # --- Sidebar controls
 st.sidebar.header("Controls & Assumptions")
 cost_per_min = st.sidebar.number_input(
-    "Cost per bus-minute (£)", min_value=0.5, max_value=5.0, value=float(CFG["costs"]["cost_per_bus_minute_gbp"]), step=0.1
+    "Cost per bus-minute (£)", min_value=0.5, max_value=5.0,
+    value=float(CFG["costs"]["cost_per_bus_minute_gbp"]), step=0.1
 )
 
 sev_map = CFG["delays"]["severity_to_delay_minutes"]
@@ -68,12 +66,8 @@ for i, lid in enumerate(line_ids):
     try:
         arr = get_line_arrivals(lid)
     except Exception:
-        # offline fallback to saved sample if present
         sample_file = os.path.join(os.path.dirname(__file__), "data", f"sample_arrivals_line{lid}.json")
-        if os.path.exists(sample_file):
-            arr = json.load(open(sample_file))
-        else:
-            arr = []
+        arr = json.load(open(sample_file)) if os.path.exists(sample_file) else []
     hw = estimate_headway_minutes(arr, CFG["headway"]["min_headway_minutes"], CFG["headway"]["max_headway_minutes"])
     line_to_headway[lid] = hw
     progress.progress((i+1)/max(1,len(line_ids)), text=f"Line {lid}: {hw:.1f} min")
@@ -95,9 +89,6 @@ if df_costs.empty:
     st.info("No disruptions affecting bus lines at the moment (or data unavailable).")
 else:
     st.dataframe(df_costs, use_container_width=True)
-
-# --- Map (optional; requires lat/lon — many line disruptions don’t include it reliably)
-# If you later add a join to roadworks points, you can visualize here with pydeck
 
 st.divider()
 with st.expander("Assumptions & Method"):

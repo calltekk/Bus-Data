@@ -33,3 +33,8 @@ def get_line_stop_points(line_id: str):
 
 def get_route_sequence(line_id: str, direction="inbound"):
     return _get(f"/Line/{line_id}/Route/Sequence/{direction}", params={"serviceTypes":"Regular"})
+
+import streamlit as st
+
+APP_KEY = st.secrets["TFL_APP_KEY"]
+DB_PATH = st.secrets.get("DB_PATH", "bus_demo.sqlite")

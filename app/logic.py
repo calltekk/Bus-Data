@@ -1,30 +1,18 @@
 import pandas as pd
 import numpy as np
-import datetime as dt
 
 def normalize_disruptions(raw: list) -> pd.DataFrame:
-    """
-    Expected fields in /Line/Mode/bus/Disruption items commonly include:
-    - category, type, severity, startTime, endTime, lastModified, description
-    - additionalProperties
-    - affectedRoutes or lines (varies). We’ll parse 'lines' when present.
-    - point (lat/lon) sometimes present in road disruptions; here we focus on line linkage.
-    """
     if not raw: 
         return pd.DataFrame()
-
-    # Coerce into flat rows by affected line when available
     rows = []
     for item in raw:
-        severity = item.get("severity") or item.get("severityLevel") or "Undefined"
+        severity = item.get("severity") or "Undefined"
         start = item.get("startTime")
         end = item.get("endTime")
-        desc = item.get("description") or item.get("comments") or ""
+        desc = item.get("description") or ""
         last = item.get("lastModified")
-        # Lines can appear as 'lines': [{"id": "55", "name": "..."}]
         lines = item.get("lines") or []
         if not lines:
-            # fallback: single row with no line id
             rows.append({
                 "lineId": None,
                 "severity": severity,
@@ -40,32 +28,24 @@ def normalize_disruptions(raw: list) -> pd.DataFrame:
                     "description": desc
                 })
     df = pd.DataFrame(rows)
-    # Parse times
     for c in ["startTime","endTime","lastModified"]:
         if c in df.columns:
             df[c] = pd.to_datetime(df[c], errors="coerce", utc=True)
     return df
 
 def estimate_headway_minutes(arrivals_json: list, min_hw=3, max_hw=20) -> float:
-    """
-    Use arrivals (timeToStation in seconds) across stops to estimate **typical headway now**.
-    We’ll take per-stop sorted times, diff them, collect all small gaps, and take median.
-    """
     if not arrivals_json:
         return 8.0
     df = pd.DataFrame(arrivals_json)
     if "timeToStation" not in df.columns or "naptanId" not in df.columns:
         return 8.0
     df["eta_min"] = df["timeToStation"] / 60.0
-    # compute gaps per stop
     gaps = []
     for stop_id, g in df.groupby("naptanId"):
         etas = sorted(g["eta_min"].tolist())
         if len(etas) < 2: 
             continue
-        # consecutive diffs
         d = np.diff(etas)
-        # keep reasonable diffs (filter out huge gaps)
         d = [x for x in d if 0.5 <= x <= (max_hw*1.5)]
         gaps.extend(d)
     if not gaps:
@@ -78,11 +58,6 @@ def severity_delay_minutes(severity: str, severity_map: dict) -> float:
     return float(severity_map.get(severity, severity_map.get("Undefined", 5)))
 
 def disruption_cost_per_hour(delay_per_bus_min: float, headway_min: float, cost_per_bus_min: float) -> float:
-    """
-    Buses per hour ≈ 60 / headway.
-    Total delay minutes per hour ≈ delay_per_bus_min * (60 / headway)
-    Cost per hour = delay_minutes_per_hour * cost_per_bus_min
-    """
     if headway_min <= 0: headway_min = 8.0
     buses_per_hour = 60.0 / headway_min
     delay_minutes_per_hour = delay_per_bus_min * buses_per_hour
@@ -92,12 +67,10 @@ def aggregate_costs(disruptions_df: pd.DataFrame, line_id_to_headway: dict, seve
     if disruptions_df.empty:
         return pd.DataFrame(columns=["lineId","severity","delay_min_per_bus","headway_min","cost_per_hour_gbp","incidents"])
     disruptions_df = disruptions_df.dropna(subset=["lineId"])
-    # pick the latest state per line & severity (or count incidents)
     g = disruptions_df.groupby(["lineId","severity"]).agg(
         incidents=("lineId","count"),
         last_seen=("lastModified","max")
     ).reset_index()
-
     out_rows = []
     for _, row in g.iterrows():
         lid = row["lineId"]
