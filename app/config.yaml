@@ -1,0 +1,16 @@
+costs:
+  cost_per_bus_minute_gbp: 1.50   # assumption (driver + fuel + overhead)
+  penalty_per_missed_trip_gbp: 50 # optional, used for ghost-bus ideas
+delays:
+  # conservative defaults; you’ll show these in UI and make editable
+  severity_to_delay_minutes:
+    "Severe": 12
+    "Serious": 10
+    "Moderate": 7
+    "Minor": 4
+    "Undefined": 5
+headway:
+  min_headway_minutes: 3
+  max_headway_minutes: 20
+ui:
+  default_lines: ["55","25","149","29"]  # lines to spotlight first
