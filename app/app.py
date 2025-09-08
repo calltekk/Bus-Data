@@ -4,7 +4,12 @@ import numpy as np
 import pydeck as pdk
 import streamlit as st
 from dotenv import load_dotenv
-import yaml
+
+# YAML fallback for Python 3.13 Streamlit Cloud
+try:
+    import yaml
+except ModuleNotFoundError:
+    from ruamel import yaml
 
 from logic import (
     normalize_disruptions,
@@ -26,15 +31,25 @@ CFG = yaml.safe_load(open(CFG_PATH))
 # --- Sidebar controls
 st.sidebar.header("Controls & Assumptions")
 cost_per_min = st.sidebar.number_input(
-    "Cost per bus-minute (£)", min_value=0.5, max_value=5.0, value=float(CFG["costs"]["cost_per_bus_minute_gbp"]), step=0.1
+    "Cost per bus-minute (£)",
+    min_value=0.5,
+    max_value=5.0,
+    value=float(CFG["costs"]["cost_per_bus_minute_gbp"]),
+    step=0.1
 )
 
 sev_map = CFG["delays"]["severity_to_delay_minutes"]
 for sev in list(sev_map.keys()):
-    sev_map[sev] = st.sidebar.number_input(f"Delay per bus if {sev} (min)", 1, 30, int(sev_map[sev]), 1)
+    sev_map[sev] = st.sidebar.number_input(
+        f"Delay per bus if {sev} (min)",
+        1, 30,
+        int(sev_map[sev]), 1
+    )
 
 default_lines = st.sidebar.multiselect(
-    "Watchlist lines", options=CFG["ui"]["default_lines"], default=CFG["ui"]["default_lines"]
+    "Watchlist lines",
+    options=CFG["ui"]["default_lines"],
+    default=CFG["ui"]["default_lines"]
 )
 
 st.sidebar.caption("Tip: Tweak assumptions live — costs update instantly.")

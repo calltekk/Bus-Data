@@ -20,7 +20,6 @@ def _get(path, params=None, retries=2, timeout=15):
                 return r.json()
         except requests.exceptions.RequestException:
             time.sleep(0.8 * (i+1))
-    # Return empty list if all retries fail
     return []
 
 def get_bus_disruptions():
