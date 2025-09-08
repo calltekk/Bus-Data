@@ -8,10 +8,8 @@ import streamlit as st
 from dotenv import load_dotenv
 
 # --- YAML handling for Python 3.13 / Streamlit Cloud
-try:
-    import yaml
-except ModuleNotFoundError:
-    from ruamel import yaml
+from ruamel.yaml import YAML
+yaml = YAML(typ='safe')
 
 # --- Load environment variables
 load_dotenv()  # looks for .env in the same folder
