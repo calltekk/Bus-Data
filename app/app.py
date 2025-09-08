@@ -1,3 +1,5 @@
+# app/app.py
+
 import os, json, time
 import pandas as pd
 import numpy as np
@@ -5,11 +7,14 @@ import pydeck as pdk
 import streamlit as st
 from dotenv import load_dotenv
 
-# YAML fallback for Python 3.13 Streamlit Cloud
+# --- YAML handling for Python 3.13 / Streamlit Cloud
 try:
     import yaml
 except ModuleNotFoundError:
     from ruamel import yaml
+
+# --- Load environment variables
+load_dotenv()  # looks for .env in the same folder
 
 from logic import (
     normalize_disruptions,
@@ -18,9 +23,6 @@ from logic import (
 )
 from tfl_client import get_bus_disruptions, get_line_arrivals
 from storage import read_table
-
-# Load environment variables
-load_dotenv()
 
 st.set_page_config(page_title="Bus Disruption Cost Dashboard", layout="wide")
 
@@ -31,25 +33,15 @@ CFG = yaml.safe_load(open(CFG_PATH))
 # --- Sidebar controls
 st.sidebar.header("Controls & Assumptions")
 cost_per_min = st.sidebar.number_input(
-    "Cost per bus-minute (£)",
-    min_value=0.5,
-    max_value=5.0,
-    value=float(CFG["costs"]["cost_per_bus_minute_gbp"]),
-    step=0.1
+    "Cost per bus-minute (£)", min_value=0.5, max_value=5.0, value=float(CFG["costs"]["cost_per_bus_minute_gbp"]), step=0.1
 )
 
 sev_map = CFG["delays"]["severity_to_delay_minutes"]
 for sev in list(sev_map.keys()):
-    sev_map[sev] = st.sidebar.number_input(
-        f"Delay per bus if {sev} (min)",
-        1, 30,
-        int(sev_map[sev]), 1
-    )
+    sev_map[sev] = st.sidebar.number_input(f"Delay per bus if {sev} (min)", 1, 30, int(sev_map[sev]), 1)
 
 default_lines = st.sidebar.multiselect(
-    "Watchlist lines",
-    options=CFG["ui"]["default_lines"],
-    default=CFG["ui"]["default_lines"]
+    "Watchlist lines", options=CFG["ui"]["default_lines"], default=CFG["ui"]["default_lines"]
 )
 
 st.sidebar.caption("Tip: Tweak assumptions live — costs update instantly.")
@@ -59,19 +51,12 @@ st.caption("Quantifying the £ impact of live disruptions on TfL bus routes (dem
 
 # --- Fetch disruptions (live; fallback to local sample)
 with st.spinner("Fetching disruptions..."):
-    raw_disruptions = []
     try:
         raw_disruptions = get_bus_disruptions()
-    except Exception as e:
-        st.warning(f"API fetch failed: {e}")
-
-    if not raw_disruptions:
+    except Exception:
         sample_path = os.path.join(os.path.dirname(__file__), "data", "sample_disruptions.json")
-        if os.path.exists(sample_path):
-            raw_disruptions = json.load(open(sample_path))
-            st.info("Using sample disruptions (offline mode).")
-        else:
-            raw_disruptions = []
+        raw_disruptions = json.load(open(sample_path))
+        st.warning("Using sample disruptions (offline mode).")
 
 df_disr = normalize_disruptions(raw_disruptions)
 
@@ -85,6 +70,7 @@ for i, lid in enumerate(line_ids):
     try:
         arr = get_line_arrivals(lid)
     except Exception:
+        # offline fallback to saved sample if present
         sample_file = os.path.join(os.path.dirname(__file__), "data", f"sample_arrivals_line{lid}.json")
         if os.path.exists(sample_file):
             arr = json.load(open(sample_file))
@@ -112,7 +98,9 @@ if df_costs.empty:
 else:
     st.dataframe(df_costs, use_container_width=True)
 
-# --- Map (optional)
+# --- Map (optional; requires lat/lon — many line disruptions don’t include it reliably)
+# If you later add a join to roadworks points, you can visualize here with pydeck
+
 st.divider()
 with st.expander("Assumptions & Method"):
     st.markdown("""
